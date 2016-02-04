@@ -94,8 +94,10 @@ namespace DuplicateExtensionFinder
                 Console.WriteLine("{0}", @group.First().Name);
                 foreach (var vsix in group.OrderBy(x => x.Version))
                 {
-                    Console.WriteLine(" - {0} [{2}] ({1})", vsix.Version, vsix.Path, toDelete.Contains(vsix) ? "DELETE" : "KEEP");
-                    if (doDelete)
+                    bool isDuplicate = toDelete.Contains(vsix);
+                    Console.WriteLine(" - {0} [{2}] ({1})", vsix.Version, vsix.Path, isDuplicate ? "DELETE" : "KEEP");
+
+                    if (isDuplicate && doDelete)
                     {
                         Directory.Delete(vsix.Path, true);
                     }
