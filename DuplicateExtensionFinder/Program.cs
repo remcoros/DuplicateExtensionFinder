@@ -115,6 +115,7 @@ namespace DuplicateExtensionFinder
     public class Extension
     {
         public string Id { get; set; }
+
         public string Name { get; set; }
 
         public string Path { get; set; }
@@ -132,9 +133,6 @@ namespace DuplicateExtensionFinder
 
         [XmlElement(ElementName = "DisplayName", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
         public string DisplayName { get; set; }
-
-        [XmlElement(ElementName = "Description", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
-        public string Description { get; set; }
     }
 
     [XmlRoot(ElementName = "Identity", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
@@ -145,12 +143,6 @@ namespace DuplicateExtensionFinder
 
         [XmlAttribute(AttributeName = "Version")]
         public string Version { get; set; }
-
-        [XmlAttribute(AttributeName = "Language")]
-        public string Language { get; set; }
-
-        [XmlAttribute(AttributeName = "Publisher")]
-        public string Publisher { get; set; }
     }
 
     [XmlRoot(ElementName = "PackageManifest", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
@@ -158,9 +150,6 @@ namespace DuplicateExtensionFinder
     {
         [XmlElement(ElementName = "Metadata", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
         public Metadata Metadata { get; set; }
-
-        [XmlIgnore]
-        public string Path { get; set; }
     }
 
     [XmlRoot(ElementName = "Vsix", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
@@ -168,9 +157,6 @@ namespace DuplicateExtensionFinder
     {
         [XmlElement(ElementName = "Identifier", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
         public Identifier Identifier { get; set; }
-
-        [XmlIgnore]
-        public string Path { get; set; }
     }
 
     [XmlRoot(ElementName = "Identifier", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
@@ -179,14 +165,8 @@ namespace DuplicateExtensionFinder
         [XmlElement(ElementName = "Name", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
         public string Name { get; set; }
 
-        [XmlElement(ElementName = "Author", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
-        public string Author { get; set; }
-
         [XmlElement(ElementName = "Version", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
         public string Version { get; set; }
-
-        [XmlElement(ElementName = "Description", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2010")]
-        public string Description { get; set; }
 
         [XmlAttribute(AttributeName = "Id")]
         public string Id { get; set; }
