@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,14 +16,22 @@ namespace DuplicateExtensionFinder
         static void Main(string[] args)
         {
             bool onlyDupes = false;
+            bool doDelete = false;
+
             var paths = new[]
             {
                 Path.Combine(Environment.GetEnvironmentVariable("LocalAppData"), @"Microsoft\VisualStudio\14.0\Extensions"),
                 @"C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions"
             };
+
             if (args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase)))
             {
                 onlyDupes = true;
+            }
+
+            if (args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase)))
+            {
+                doDelete = true;
             }
 
             var extensions = new List<Extension>();
@@ -56,7 +65,8 @@ namespace DuplicateExtensionFinder
                                     Id = vsix.Identifier.Id,
                                     Name = vsix.Identifier.Name,
                                     Version = new Version(vsix.Identifier.Version),
-                                    Path = dir.FullName
+                                    Path = dir.FullName,
+                                    CreationTime = dir.CreationTime
                                 });
                             }
                             else if (packageSerializer.CanDeserialize(rdr))
@@ -67,7 +77,8 @@ namespace DuplicateExtensionFinder
                                     Id = package.Metadata.Identity.Id,
                                     Name = package.Metadata.DisplayName,
                                     Version = new Version(package.Metadata.Identity.Version),
-                                    Path = dir.FullName
+                                    Path = dir.FullName,
+                                    CreationTime = dir.CreationTime
                                 });
                             }
                         }
@@ -75,17 +86,28 @@ namespace DuplicateExtensionFinder
                 }
             }
 
-            var grouped = extensions.OrderBy(x => x.Name).GroupBy(x => x.Id);
+            var grouped = extensions.OrderBy(x => x.Name).GroupBy(x => x.Id).ToList();
+            var toDelete = grouped.Where(x => x.Count() > 1).SelectMany(@group => @group.OrderByDescending(x => x.Version).ThenByDescending(x => x.CreationTime).Skip(1)).ToList();
 
             foreach (var group in grouped.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
             {
                 Console.WriteLine("{0}", @group.First().Name);
                 foreach (var vsix in group.OrderBy(x => x.Version))
                 {
-                    Console.WriteLine(" - {0} ({1})", vsix.Version, vsix.Path);
+                    Console.WriteLine(" - {0} [{2}] ({1})", vsix.Version, vsix.Path, toDelete.Contains(vsix) ? "DELETE" : "KEEP");
+                    if (doDelete)
+                    {
+                        Directory.Delete(vsix.Path, true);
+                    }
                 }
 
                 Console.WriteLine();
+            }
+
+
+            if (!doDelete)
+            {
+                Console.WriteLine("Specify '-delete' to delete old extensions from disk.");
             }
         }
     }
@@ -98,6 +120,8 @@ namespace DuplicateExtensionFinder
         public string Path { get; set; }
 
         public Version Version { get; set; }
+
+        public DateTime CreationTime { get; set; }
     }
 
     [XmlRoot(ElementName = "Metadata", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
