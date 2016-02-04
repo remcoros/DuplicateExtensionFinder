@@ -17,7 +17,7 @@ namespace DuplicateExtensionFinder
             bool onlyDupes = false;
             var paths = new[]
             {
-                @"C:\Users\rro\AppData\Local\Microsoft\VisualStudio\14.0\Extensions",
+                Path.Combine(Environment.GetEnvironmentVariable("LocalAppData"), @"Microsoft\VisualStudio\14.0\Extensions"),
                 @"C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions"
             };
             if (args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase)))
