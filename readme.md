@@ -1,5 +1,7 @@
 # Duplicate Extension Finder for VS2015
 
+[![Build status](https://ci.appveyor.com/api/projects/status/cfgak6mw0v8fg9d2?svg=true)](https://ci.appveyor.com/project/remcoros/duplicateextensionfinder)
+
 Simple console tool to find duplicate extension folders / manifests for Visual Studio 2015 extensions. Used by me to cleanup and fix duplicate extension loading errors.
 
 Extensions that mysteriously disable themselves can be an indicator of duplicate extensions.
