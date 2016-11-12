@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Mime;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace DuplicateExtensionFinder
+﻿namespace DuplicateExtensionFinder
 {
+    using System;
+    using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Xml;
     using System.Xml.Serialization;
 
@@ -18,10 +14,13 @@ namespace DuplicateExtensionFinder
             bool onlyDupes = false;
             bool doDelete = false;
 
+            var localAppDataDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var programFilesDir = Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles);
+
             var paths = new[]
             {
-                Path.Combine(Environment.GetEnvironmentVariable("LocalAppData"), @"Microsoft\VisualStudio\14.0\Extensions"),
-                @"C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions"
+                Path.Combine(localAppDataDir, @"Microsoft\VisualStudio\14.0\Extensions"),
+                Path.Combine(programFilesDir, @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions")
             };
 
             if (args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase)))
