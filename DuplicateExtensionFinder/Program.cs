@@ -11,9 +11,6 @@
     {
         static void Main(string[] args)
         {
-            bool onlyDupes = false;
-            bool doDelete = false;
-
             var localAppDataDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             var programFilesDir = Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles);
 
@@ -23,17 +20,11 @@
                 Path.Combine(programFilesDir, @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions")
             };
 
-            if (args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase)))
-            {
-                onlyDupes = true;
-            }
-
-            if (args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase)))
-            {
-                doDelete = true;
-            }
+            var onlyDupes = args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase));
+            var doDelete = args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase));
 
             var extensions = new List<Extension>();
+
             foreach (var path in paths)
             {
                 var extensionDir = new DirectoryInfo(path);
@@ -41,7 +32,8 @@
                 var vsixSerializer = new XmlSerializer(typeof(Vsix));
                 var packageSerializer = new XmlSerializer(typeof(PackageManifest));
 
-                var extDirs = extensionDir.GetDirectories();
+                var extDirs = extensionDir.GetDirectories("*.*", SearchOption.AllDirectories);
+
                 foreach (var dir in extDirs)
                 {
                     // skip symlinks and junctions
@@ -50,35 +42,42 @@
                         continue;
                     }
 
-                    string manifest = Path.Combine(dir.FullName, "extension.vsixmanifest");
+                    var manifest = Path.Combine(dir.FullName, "extension.vsixmanifest");
                     if (File.Exists(manifest))
                     {
                         using (var file = File.OpenRead(manifest))
                         using (var rdr = new XmlTextReader(file))
                         {
-                            if (vsixSerializer.CanDeserialize(rdr))
+                            try
                             {
-                                var vsix = (Vsix)vsixSerializer.Deserialize(rdr);
-                                extensions.Add(new Extension()
+                                if (vsixSerializer.CanDeserialize(rdr))
                                 {
-                                    Id = vsix.Identifier.Id,
-                                    Name = vsix.Identifier.Name,
-                                    Version = new Version(vsix.Identifier.Version),
-                                    Path = dir.FullName,
-                                    CreationTime = dir.CreationTime
-                                });
+                                    var vsix = (Vsix) vsixSerializer.Deserialize(rdr);
+                                    extensions.Add(new Extension()
+                                    {
+                                        Id = vsix.Identifier.Id,
+                                        Name = vsix.Identifier.Name,
+                                        Version = new Version(vsix.Identifier.Version),
+                                        Path = dir.FullName,
+                                        CreationTime = dir.CreationTime
+                                    });
+                                }
+                                else if (packageSerializer.CanDeserialize(rdr))
+                                {
+                                    var package = (PackageManifest) packageSerializer.Deserialize(rdr);
+                                    extensions.Add(new Extension()
+                                    {
+                                        Id = package.Metadata.Identity.Id,
+                                        Name = package.Metadata.DisplayName,
+                                        Version = new Version(package.Metadata.Identity.Version),
+                                        Path = dir.FullName,
+                                        CreationTime = dir.CreationTime
+                                    });
+                                }
                             }
-                            else if (packageSerializer.CanDeserialize(rdr))
+                            catch (XmlException)
                             {
-                                var package = (PackageManifest)packageSerializer.Deserialize(rdr);
-                                extensions.Add(new Extension()
-                                {
-                                    Id = package.Metadata.Identity.Id,
-                                    Name = package.Metadata.DisplayName,
-                                    Version = new Version(package.Metadata.Identity.Version),
-                                    Path = dir.FullName,
-                                    CreationTime = dir.CreationTime
-                                });
+                                // invalid manifest, ignore...
                             }
                         }
                     }
@@ -93,7 +92,7 @@
                 Console.WriteLine("{0}", @group.First().Name);
                 foreach (var vsix in group.OrderBy(x => x.Version))
                 {
-                    bool isDuplicate = toDelete.Contains(vsix);
+                    var isDuplicate = toDelete.Contains(vsix);
                     Console.WriteLine(" - {0} [{2}] ({1})", vsix.Version, vsix.Path, isDuplicate ? "DELETE" : "KEEP");
 
                     if (isDuplicate && doDelete)
@@ -110,6 +109,10 @@
             {
                 Console.WriteLine("Specify '-delete' to delete old extensions from disk.");
             }
+
+            Console.WriteLine();
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
         }
     }
 
