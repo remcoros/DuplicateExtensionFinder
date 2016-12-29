@@ -51,7 +51,7 @@
                             {
                                 if (vsixSerializer.CanDeserialize(rdr))
                                 {
-                                    var vsix = (Vsix) vsixSerializer.Deserialize(rdr);
+                                    var vsix = (Vsix)vsixSerializer.Deserialize(rdr);
                                     extensions.Add(new Extension()
                                     {
                                         Id = vsix.Identifier.Id,
@@ -63,7 +63,7 @@
                                 }
                                 else if (packageSerializer.CanDeserialize(rdr))
                                 {
-                                    var package = (PackageManifest) packageSerializer.Deserialize(rdr);
+                                    var package = (PackageManifest)packageSerializer.Deserialize(rdr);
                                     extensions.Add(new Extension()
                                     {
                                         Id = package.Metadata.Identity.Id,
@@ -96,7 +96,18 @@
 
                     if (isDuplicate && doDelete)
                     {
-                        Directory.Delete(vsix.Path, true);
+                        try
+                        {
+                            Directory.Delete(vsix.Path, true);
+                        }
+                        catch (System.UnauthorizedAccessException)
+                        {
+                            Console.WriteLine();
+                            Console.WriteLine("You must start as administrator to delete global extensions.");
+                            Console.WriteLine("Press any key to continue...");
+                            Console.ReadKey();
+                            return;
+                        }
                     }
                 }
 
