@@ -45,8 +45,7 @@
                     var manifest = Path.Combine(dir.FullName, "extension.vsixmanifest");
                     if (File.Exists(manifest))
                     {
-                        using (var file = File.OpenRead(manifest))
-                        using (var rdr = new XmlTextReader(file))
+                        using (var rdr = XmlReader.Create(manifest, new XmlReaderSettings { IgnoreComments = true }))
                         {
                             try
                             {
