@@ -114,6 +114,10 @@
                 Console.WriteLine();
             }
 
+            if (toDelete.Count == 0)
+            {
+                Console.WriteLine("No duplicates found.");
+            }
 
             if (!doDelete)
             {
