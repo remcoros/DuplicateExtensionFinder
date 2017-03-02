@@ -24,6 +24,7 @@
             var doDelete = args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase));
 
             var extensions = new List<Extension>();
+            var manifestNames = new List<string>() { "extension.vsixmanifest", "extension.vsixmanifest.deleteme" };
 
             foreach (var path in paths)
             {
@@ -42,41 +43,45 @@
                         continue;
                     }
 
-                    var manifest = Path.Combine(dir.FullName, "extension.vsixmanifest");
-                    if (File.Exists(manifest))
+                    foreach (var name in manifestNames)
                     {
-                        using (var rdr = XmlReader.Create(manifest, new XmlReaderSettings { IgnoreComments = true }))
+                        var manifest = Path.Combine(dir.FullName, name);
+
+                        if (File.Exists(manifest))
                         {
-                            try
+                            using (var rdr = XmlReader.Create(manifest, new XmlReaderSettings { IgnoreComments = true }))
                             {
-                                if (vsixSerializer.CanDeserialize(rdr))
+                                try
                                 {
-                                    var vsix = (Vsix)vsixSerializer.Deserialize(rdr);
-                                    extensions.Add(new Extension()
+                                    if (vsixSerializer.CanDeserialize(rdr))
                                     {
-                                        Id = vsix.Identifier.Id,
-                                        Name = vsix.Identifier.Name,
-                                        Version = new Version(vsix.Identifier.Version),
-                                        Path = dir.FullName,
-                                        CreationTime = dir.CreationTime
-                                    });
+                                        var vsix = (Vsix)vsixSerializer.Deserialize(rdr);
+                                        extensions.Add(new Extension()
+                                        {
+                                            Id = vsix.Identifier.Id,
+                                            Name = vsix.Identifier.Name,
+                                            Version = new Version(vsix.Identifier.Version),
+                                            Path = dir.FullName,
+                                            CreationTime = dir.CreationTime
+                                        });
+                                    }
+                                    else if (packageSerializer.CanDeserialize(rdr))
+                                    {
+                                        var package = (PackageManifest)packageSerializer.Deserialize(rdr);
+                                        extensions.Add(new Extension()
+                                        {
+                                            Id = package.Metadata.Identity.Id,
+                                            Name = package.Metadata.DisplayName,
+                                            Version = new Version(package.Metadata.Identity.Version),
+                                            Path = dir.FullName,
+                                            CreationTime = dir.CreationTime
+                                        });
+                                    }
                                 }
-                                else if (packageSerializer.CanDeserialize(rdr))
+                                catch (XmlException)
                                 {
-                                    var package = (PackageManifest)packageSerializer.Deserialize(rdr);
-                                    extensions.Add(new Extension()
-                                    {
-                                        Id = package.Metadata.Identity.Id,
-                                        Name = package.Metadata.DisplayName,
-                                        Version = new Version(package.Metadata.Identity.Version),
-                                        Path = dir.FullName,
-                                        CreationTime = dir.CreationTime
-                                    });
+                                    // invalid manifest, ignore...
                                 }
-                            }
-                            catch (XmlException)
-                            {
-                                // invalid manifest, ignore...
                             }
                         }
                     }
@@ -89,7 +94,7 @@
             foreach (var group in grouped.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
             {
                 Console.WriteLine("{0}", @group.First().Name);
-                foreach (var vsix in group.OrderBy(x => x.Version))
+                foreach (var vsix in group.OrderBy(x => x.Version).ThenBy(x => x.CreationTime))
                 {
                     var isDuplicate = toDelete.Contains(vsix);
                     Console.WriteLine(" - {0} [{2}] ({1})", vsix.Version, vsix.Path, isDuplicate ? "DELETE" : "KEEP");
