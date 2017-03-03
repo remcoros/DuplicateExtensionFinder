@@ -9,16 +9,18 @@
 
     class Program
     {
+        static readonly string[] DefaultPathsVs14 = {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    @"Microsoft\VisualStudio\14.0\Extensions"),
+                Path.Combine(Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles),
+                    @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions")
+            };
+
         static void Main(string[] args)
         {
-            var localAppDataDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var programFilesDir = Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles);
-
-            var paths = new[]
-            {
-                Path.Combine(localAppDataDir, @"Microsoft\VisualStudio\14.0\Extensions"),
-                Path.Combine(programFilesDir, @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions")
-            };
+            var paths = new List<string>();
+            var pathArgs = args.Where(arg => !arg.StartsWith("-")).ToArray();
+            paths.AddRange(pathArgs.Length == 0 ? DefaultPathsVs14 : pathArgs);
 
             var onlyDupes = args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase));
             var doDelete = args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase));
@@ -28,6 +30,13 @@
 
             foreach (var path in paths)
             {
+                if (!Directory.Exists(path))
+                {
+                    Console.Error.WriteLine($"Directory does not exist: {path}");
+                    continue;
+                }
+
+                Console.WriteLine($"Searching in {path}");
                 var extensionDir = new DirectoryInfo(path);
 
                 var vsixSerializer = new XmlSerializer(typeof(Vsix));
