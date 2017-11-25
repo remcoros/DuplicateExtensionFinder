@@ -16,124 +16,57 @@
                     @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions")
             };
 
+        private static readonly XmlSerializer _vsixSerializer = new XmlSerializer(typeof(Vsix));
+        private static readonly XmlSerializer _packageSerializer = new XmlSerializer(typeof(PackageManifest));
+        private static readonly string[] _manifestNames = new[] { "extension.vsixmanifest", "extension.vsixmanifest.deleteme" };
+
         static void Main(string[] args)
         {
-            var paths = new List<string>();
-            var pathArgs = args.Where(arg => !arg.StartsWith("-")).ToArray();
-            paths.AddRange(pathArgs.Length == 0 ? DefaultPathsVs14 : pathArgs);
+            var paths = args.Where(arg => !arg.StartsWith("-")).ToArray();
+            if (!paths.Any())
+                paths = DefaultPathsVs14;
 
             var onlyDupes = args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase));
             var doDelete = args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase));
 
-            var extensions = new List<Extension>();
-            var manifestNames = new List<string>() { "extension.vsixmanifest", "extension.vsixmanifest.deleteme" };
+            var extensionsById = ReadExtensions(paths).ToArray();
 
-            foreach (var path in paths)
+            foreach (var group in extensionsById.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
             {
-                if (!Directory.Exists(path))
+                Console.WriteLine("{0}", group.First().Name);
+
+                foreach (var extension in group.OrderBy(x => x.Version).ThenBy(x => x.CreationTime))
                 {
-                    Console.Error.WriteLine($"Directory does not exist: {path}");
-                    continue;
-                }
+                    Console.WriteLine(" - {0} [{2}] ({1})", extension.Version, extension.Path, extension.IsDuplicate ? "DELETE" : "KEEP");
 
-                Console.WriteLine($"Searching in {path}");
-                var extensionDir = new DirectoryInfo(path);
-
-                var vsixSerializer = new XmlSerializer(typeof(Vsix));
-                var packageSerializer = new XmlSerializer(typeof(PackageManifest));
-
-                var extDirs = extensionDir.GetDirectories("*.*", SearchOption.AllDirectories);
-
-                foreach (var dir in extDirs)
-                {
-                    // skip symlinks and junctions
-                    if (dir.Attributes.HasFlag(FileAttributes.ReparsePoint))
-                    {
+                    if (!extension.IsDuplicate)
                         continue;
-                    }
 
-                    foreach (var name in manifestNames)
+                    if (!doDelete)
+                        continue;
+
+                    try
                     {
-                        var manifest = Path.Combine(dir.FullName, name);
-
-                        if (File.Exists(manifest))
-                        {
-                            using (var rdr = XmlReader.Create(manifest, new XmlReaderSettings { IgnoreComments = true }))
-                            {
-                                try
-                                {
-                                    if (vsixSerializer.CanDeserialize(rdr))
-                                    {
-                                        var vsix = (Vsix)vsixSerializer.Deserialize(rdr);
-                                        extensions.Add(new Extension()
-                                        {
-                                            Id = vsix.Identifier.Id,
-                                            Name = vsix.Identifier.Name,
-                                            Version = new Version(vsix.Identifier.Version),
-                                            Path = dir.FullName,
-                                            CreationTime = dir.CreationTime
-                                        });
-                                    }
-                                    else if (packageSerializer.CanDeserialize(rdr))
-                                    {
-                                        var package = (PackageManifest)packageSerializer.Deserialize(rdr);
-                                        extensions.Add(new Extension()
-                                        {
-                                            Id = package.Metadata.Identity.Id,
-                                            Name = package.Metadata.DisplayName,
-                                            Version = new Version(package.Metadata.Identity.Version),
-                                            Path = dir.FullName,
-                                            CreationTime = dir.CreationTime
-                                        });
-                                    }
-                                }
-                                catch (XmlException)
-                                {
-                                    // invalid manifest, ignore...
-                                }
-                            }
-                        }
+                        Directory.Delete(extension.Path, true);
                     }
-                }
-            }
-
-            var grouped = extensions.OrderBy(x => x.Name).GroupBy(x => x.Id).ToList();
-            var toDelete = grouped.Where(x => x.Count() > 1).SelectMany(@group => @group.OrderByDescending(x => x.Version).ThenByDescending(x => x.CreationTime).Skip(1)).ToList();
-
-            foreach (var group in grouped.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
-            {
-                Console.WriteLine("{0}", @group.First().Name);
-                foreach (var vsix in group.OrderBy(x => x.Version).ThenBy(x => x.CreationTime))
-                {
-                    var isDuplicate = toDelete.Contains(vsix);
-                    Console.WriteLine(" - {0} [{2}] ({1})", vsix.Version, vsix.Path, isDuplicate ? "DELETE" : "KEEP");
-
-                    if (isDuplicate && doDelete)
+                    catch (System.UnauthorizedAccessException)
                     {
-                        try
-                        {
-                            Directory.Delete(vsix.Path, true);
-                        }
-                        catch (System.UnauthorizedAccessException)
-                        {
-                            Console.WriteLine();
-                            Console.WriteLine("You must start as administrator to delete global extensions.");
-                            Console.WriteLine("Press any key to continue...");
-                            Console.ReadKey();
-                            return;
-                        }
+                        Console.WriteLine();
+                        Console.WriteLine("You must start as administrator to delete global extensions.");
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                        return;
                     }
                 }
 
                 Console.WriteLine();
             }
 
-            if (toDelete.Count == 0)
+            if (extensionsById.SelectMany(group => group).All(ext => !ext.IsDuplicate))
             {
                 Console.WriteLine("No duplicates found.");
             }
-
-            if (!doDelete)
+            else if (!doDelete)
             {
                 Console.WriteLine("Specify '-delete' to delete old extensions from disk.");
             }
@@ -141,6 +74,77 @@
             Console.WriteLine();
             Console.WriteLine("Press any key to continue...");
             Console.ReadKey();
+        }
+
+        private static IEnumerable<IGrouping<string, Extension>> ReadExtensions(IEnumerable<string> paths)
+        {
+            var extensions = paths
+                .Select(path => new DirectoryInfo(path))
+                .Where(dir => dir.Exists)
+                .SelectMany(dir => dir.GetDirectories("*.*", SearchOption.AllDirectories))
+                .Where(dir => !dir.Attributes.HasFlag(FileAttributes.ReparsePoint)) // skip symlinks and junctions)
+                .SelectMany(dir => _manifestNames.Select(name => Path.Combine(dir.FullName, name)).Select(manifest => ReadExtensionFile(manifest, dir)))
+                .Where(ext => ext != null)
+                .ToArray();
+
+            var extensionsById = extensions
+                .OrderBy(x => x.Name)
+                .GroupBy(x => x.Id)
+                .ToArray();
+
+            var toDelete = extensionsById
+                .SelectMany(group => group.OrderByDescending(x => x.Version).ThenByDescending(x => x.CreationTime).Skip(1));
+
+            foreach (var extension in toDelete)
+            {
+                extension.IsDuplicate = true;
+            }
+
+            return extensionsById;
+        }
+
+        private static Extension ReadExtensionFile(string manifest, DirectoryInfo dir)
+        {
+            if (!File.Exists(manifest))
+                return null;
+
+            using (var reader = XmlReader.Create(manifest, new XmlReaderSettings { IgnoreComments = true }))
+            {
+                try
+                {
+                    if (_vsixSerializer.CanDeserialize(reader))
+                    {
+                        var vsix = (Vsix)_vsixSerializer.Deserialize(reader);
+                        return new Extension
+                        {
+                            Id = vsix.Identifier.Id,
+                            Name = vsix.Identifier.Name,
+                            Version = new Version(vsix.Identifier.Version),
+                            Path = dir.FullName,
+                            CreationTime = dir.CreationTime
+                        };
+                    }
+
+                    if (_packageSerializer.CanDeserialize(reader))
+                    {
+                        var package = (PackageManifest)_packageSerializer.Deserialize(reader);
+                        return new Extension
+                        {
+                            Id = package.Metadata.Identity.Id,
+                            Name = package.Metadata.DisplayName,
+                            Version = new Version(package.Metadata.Identity.Version),
+                            Path = dir.FullName,
+                            CreationTime = dir.CreationTime
+                        };
+                    }
+                }
+                catch (XmlException)
+                {
+                    // invalid manifest, ignore...
+                }
+            }
+
+            return null;
         }
     }
 
@@ -155,6 +159,8 @@
         public Version Version { get; set; }
 
         public DateTime CreationTime { get; set; }
+
+        public bool IsDuplicate { get; set; }
     }
 
     [XmlRoot(ElementName = "Metadata", Namespace = "http://schemas.microsoft.com/developer/vsx-schema/2011")]
