@@ -9,60 +9,62 @@
 
     class Program
     {
-        static readonly string[] DefaultPathsVs14 = {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    @"Microsoft\VisualStudio\14.0\Extensions"),
-                Path.Combine(Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles),
-                    @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions")
-            };
-
-        private static readonly XmlSerializer _vsixSerializer = new XmlSerializer(typeof(Vsix));
-        private static readonly XmlSerializer _packageSerializer = new XmlSerializer(typeof(PackageManifest));
-        private static readonly string[] _manifestNames = new[] { "extension.vsixmanifest", "extension.vsixmanifest.deleteme" };
-
         static void Main(string[] args)
         {
             var paths = args.Where(arg => !arg.StartsWith("-")).ToArray();
-            if (!paths.Any())
-                paths = DefaultPathsVs14;
+
+            var instances = !paths.Any() ? GetInstances() : new[] { new VisualStudioInstance("Custom", paths) };
 
             var onlyDupes = args.Any(x => string.Equals(x, "-dupes", StringComparison.OrdinalIgnoreCase));
             var doDelete = args.Any(x => string.Equals(x, "-delete", StringComparison.OrdinalIgnoreCase));
 
-            var extensionsById = ReadExtensions(paths).ToArray();
-
-            foreach (var group in extensionsById.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
+            foreach (var instance in instances)
             {
-                Console.WriteLine("{0}", group.First().Name);
-
-                foreach (var extension in group.OrderBy(x => x.Version).ThenBy(x => x.CreationTime))
-                {
-                    Console.WriteLine(" - {0} [{2}] ({1})", extension.Version, extension.Path, extension.IsDuplicate ? "DELETE" : "KEEP");
-
-                    if (!extension.IsDuplicate)
-                        continue;
-
-                    if (!doDelete)
-                        continue;
-
-                    try
-                    {
-                        Directory.Delete(extension.Path, true);
-                    }
-                    catch (System.UnauthorizedAccessException)
-                    {
-                        Console.WriteLine();
-                        Console.WriteLine("You must start as administrator to delete global extensions.");
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-                        return;
-                    }
-                }
+                var extensions = instance.Extensions;
+                if (!extensions.Any())
+                    continue;
 
                 Console.WriteLine();
+                Console.WriteLine();
+                Console.WriteLine();
+                Console.WriteLine(new string('*', 100));
+                Console.WriteLine("******  {0} ({1})", instance.Name, string.Join(", ", instance.ExtensionDirectories));
+                Console.WriteLine(new string('*', 100));
+                Console.WriteLine();
+
+                foreach (var group in extensions.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
+                {
+                    Console.WriteLine("{0}", group.First().Name);
+
+                    foreach (var extension in group.OrderBy(x => x.Version).ThenBy(x => x.CreationTime))
+                    {
+                        Console.WriteLine(" - {0} [{2}] ({1})", extension.Version, extension.Path, extension.IsDuplicate ? "DELETE" : "KEEP");
+
+                        if (!extension.IsDuplicate)
+                            continue;
+
+                        if (!doDelete)
+                            continue;
+
+                        try
+                        {
+                            Directory.Delete(extension.Path, true);
+                        }
+                        catch (System.UnauthorizedAccessException)
+                        {
+                            Console.WriteLine();
+                            Console.WriteLine("You must start as administrator to delete global extensions.");
+                            Console.WriteLine("Press any key to continue...");
+                            Console.ReadKey();
+                            return;
+                        }
+                    }
+
+                    Console.WriteLine();
+                }
             }
 
-            if (extensionsById.SelectMany(group => group).All(ext => !ext.IsDuplicate))
+            if (instances.SelectMany(inst => inst.Extensions).SelectMany(group => group).All(ext => !ext.IsDuplicate))
             {
                 Console.WriteLine("No duplicates found.");
             }
@@ -75,6 +77,50 @@
             Console.WriteLine("Press any key to continue...");
             Console.ReadKey();
         }
+
+        private static VisualStudioInstance[] GetInstances()
+        {
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\VisualStudio");
+            var extensionDirs = new DirectoryInfo(root).EnumerateDirectories("Extensions", SearchOption.AllDirectories)
+                .Where(dir => string.Equals(dir.Parent?.Parent?.FullName, root, StringComparison.OrdinalIgnoreCase));
+
+            return extensionDirs.Select(d => new VisualStudioInstance(d.Parent.Name, new[] { d.FullName })).ToArray();
+        }
+    }
+
+    public class VisualStudioInstance
+    {
+        private static readonly XmlSerializer _vsixSerializer = new XmlSerializer(typeof(Vsix));
+        private static readonly XmlSerializer _packageSerializer = new XmlSerializer(typeof(PackageManifest));
+        private static readonly string[] _manifestNames = new[] { "extension.vsixmanifest", "extension.vsixmanifest.deleteme" };
+
+        private static readonly string _programFilesFolder = Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles);
+        private static readonly string _vs14GlobalExtensionFolder = Path.Combine(_programFilesFolder, @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions");
+
+        public VisualStudioInstance(string name, IList<string> extensionDirectories)
+        {
+            Name = name;
+
+            extensionDirectories = extensionDirectories.ToList();
+
+            if (Name == "14.0")
+                extensionDirectories.Add(_vs14GlobalExtensionFolder);
+            if (Name == "15.0")
+                extensionDirectories.Add(FindVs15GlobalExtensionFolder());
+
+            extensionDirectories = extensionDirectories
+                .Where(item => item != null)
+                .ToArray();
+
+            ExtensionDirectories = extensionDirectories;
+            Extensions = ReadExtensions(extensionDirectories).ToArray();
+        }
+
+        public string Name { get; }
+
+        public IList<string> ExtensionDirectories { get; }
+
+        public IList<IGrouping<string, Extension>> Extensions { get; }
 
         private static IEnumerable<IGrouping<string, Extension>> ReadExtensions(IEnumerable<string> paths)
         {
@@ -145,6 +191,16 @@
             }
 
             return null;
+        }
+
+        private string FindVs15GlobalExtensionFolder()
+        {
+            var root = new DirectoryInfo(Path.Combine(_programFilesFolder, "Microsoft Visual Studio", "2017"));
+            var folder = root.EnumerateDirectories("Extensions", SearchOption.AllDirectories)
+                .FirstOrDefault(dir => string.Equals("IDE", dir.Parent?.Name, StringComparison.OrdinalIgnoreCase) 
+                    && string.Equals("Common7", dir.Parent?.Parent?.Name, StringComparison.OrdinalIgnoreCase));
+
+            return folder?.FullName;
         }
     }
 
