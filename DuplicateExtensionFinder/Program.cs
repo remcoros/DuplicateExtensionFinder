@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.IO;
     using System.Linq;
     using System.Xml;
@@ -12,6 +13,16 @@
         static void Main(string[] args)
         {
             var paths = args.Where(arg => !arg.StartsWith("-")).ToArray();
+
+            var invalidPaths = paths
+                .Where(dir => !Directory.Exists(dir))
+                .ToArray();
+
+            if (invalidPaths.Any())
+            {
+                Console.WriteLine("Warning: Skipping non-exisiting folder(s): " + string.Join(", ", paths));
+                Console.WriteLine();
+            }
 
             var instances = !paths.Any() ? GetInstances() : new[] { new VisualStudioInstance("Custom", paths) };
 
@@ -24,6 +35,9 @@
                 if (!extensions.Any())
                     continue;
 
+                if (onlyDupes && !extensions.SelectMany(ext => ext).Any(ext => ext.IsDuplicate))
+                    continue;
+
                 Console.WriteLine();
                 Console.WriteLine();
                 Console.WriteLine();
@@ -32,8 +46,11 @@
                 Console.WriteLine(new string('*', 100));
                 Console.WriteLine();
 
-                foreach (var group in extensions.Where(x => x.Count() > (onlyDupes ? 1 : 0)))
+                foreach (var group in extensions)
                 {
+                    if (onlyDupes && group.Count() <= 1)
+                        continue;
+
                     Console.WriteLine("{0}", group.First().Name);
 
                     foreach (var extension in group.OrderBy(x => x.Version).ThenBy(x => x.CreationTime))
@@ -95,37 +112,43 @@
         private static readonly string[] _manifestNames = new[] { "extension.vsixmanifest", "extension.vsixmanifest.deleteme" };
 
         private static readonly string _programFilesFolder = Environment.GetFolderPath(Environment.Is64BitOperatingSystem ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles);
-        private static readonly string _vs14GlobalExtensionFolder = Path.Combine(_programFilesFolder, @"Microsoft Visual Studio 14.0\Common7\IDE\Extensions");
+        private static readonly string _vsGlobalExtensionFolderFormat = Path.Combine(_programFilesFolder, @"Microsoft Visual Studio {0}.0\Common7\IDE\Extensions");
 
-        public VisualStudioInstance(string name, IList<string> extensionDirectories)
+        public VisualStudioInstance(string name, IEnumerable<string> extensionDirectories)
         {
             Name = name;
+            ExtensionDirectories = extensionDirectories.ToList();
 
-            extensionDirectories = extensionDirectories.ToList();
+            if ((name.Length >= 4) && double.TryParse(name.Substring(0, 4), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var version))
+            {
+                if (version <= 14)
+                {
+                    ExtensionDirectories.Add(string.Format(CultureInfo.InvariantCulture, _vsGlobalExtensionFolderFormat, (int)version));
+                }
+                else if ((int) version == 15)
+                {
+                    ExtensionDirectories.Add(FindVs15GlobalExtensionFolder());
+                }
 
-            if (Name == "14.0")
-                extensionDirectories.Add(_vs14GlobalExtensionFolder);
-            if (Name == "15.0")
-                extensionDirectories.Add(FindVs15GlobalExtensionFolder());
+                ExtensionDirectories = ExtensionDirectories
+                    .Where(item => item != null)
+                    .ToArray();
+            }
 
-            extensionDirectories = extensionDirectories
-                .Where(item => item != null)
-                .ToArray();
-
-            ExtensionDirectories = extensionDirectories;
-            Extensions = ReadExtensions(extensionDirectories).ToArray();
+            Extensions = ReadExtensions(ExtensionDirectories).ToArray();
         }
 
         public string Name { get; }
 
         public IList<string> ExtensionDirectories { get; }
 
-        public IList<IGrouping<string, Extension>> Extensions { get; }
+        public IList<IGrouping<string, Extension>> Extensions { get; } // = new IGrouping<string, Extension>[0];
 
-        private static IEnumerable<IGrouping<string, Extension>> ReadExtensions(IEnumerable<string> paths)
+        private static IEnumerable<IGrouping<string, Extension>> ReadExtensions(IEnumerable<string> pathNames)
         {
+            var paths = pathNames.Select(path => new DirectoryInfo(path));
+
             var extensions = paths
-                .Select(path => new DirectoryInfo(path))
                 .Where(dir => dir.Exists)
                 .SelectMany(dir => dir.GetDirectories("*.*", SearchOption.AllDirectories))
                 .Where(dir => !dir.Attributes.HasFlag(FileAttributes.ReparsePoint)) // skip symlinks and junctions)
@@ -149,7 +172,7 @@
             return extensionsById;
         }
 
-        private static Extension ReadExtensionFile(string manifest, DirectoryInfo dir)
+        private static Extension ReadExtensionFile(string manifest, FileSystemInfo dir)
         {
             if (!File.Exists(manifest))
                 return null;
@@ -193,7 +216,7 @@
             return null;
         }
 
-        private string FindVs15GlobalExtensionFolder()
+        private static string FindVs15GlobalExtensionFolder()
         {
             var root = new DirectoryInfo(Path.Combine(_programFilesFolder, "Microsoft Visual Studio", "2017"));
             var folder = root.EnumerateDirectories("Extensions", SearchOption.AllDirectories)
