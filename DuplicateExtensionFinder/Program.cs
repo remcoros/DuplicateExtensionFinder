@@ -1,4 +1,6 @@
-﻿namespace DuplicateExtensionFinder
+﻿// ReSharper disable AssignNullToNotNullAttribute
+// ReSharper disable PossibleNullReferenceException
+namespace DuplicateExtensionFinder
 {
     using System;
     using System.Collections.Generic;
@@ -8,7 +10,7 @@
     using System.Xml;
     using System.Xml.Serialization;
 
-    class Program
+    static class Program
     {
         static void Main(string[] args)
         {
@@ -20,7 +22,7 @@
 
             if (invalidPaths.Any())
             {
-                Console.WriteLine("Warning: Skipping non-exisiting folder(s): " + string.Join(", ", paths));
+                Console.WriteLine("Warning: Skipping non-existing folder(s): " + string.Join(", ", paths));
                 Console.WriteLine();
             }
 
@@ -67,7 +69,7 @@
                         {
                             Directory.Delete(extension.Path, true);
                         }
-                        catch (System.UnauthorizedAccessException)
+                        catch (UnauthorizedAccessException)
                         {
                             Console.WriteLine();
                             Console.WriteLine("You must start as administrator to delete global extensions.");
