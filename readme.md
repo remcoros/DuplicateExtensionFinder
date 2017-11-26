@@ -1,25 +1,27 @@
-# Duplicate Extension Finder for VS2015
+# Duplicate Extension Finder for VS2010-2017
 
 [![Build status](https://ci.appveyor.com/api/projects/status/cfgak6mw0v8fg9d2?svg=true)](https://ci.appveyor.com/project/remcoros/duplicateextensionfinder)
 [Appveyor artifacts (latest .exe here)](https://ci.appveyor.com/project/remcoros/duplicateextensionfinder/build/artifacts)
 
-Simple console tool to find duplicate extension folders / manifests for Visual Studio 2015 extensions. Used by me to cleanup and fix duplicate extension loading errors.
+Simple console tool to find duplicate extension folders / manifests for Visual Studio 201x extensions. Used by me to cleanup and fix duplicate extension loading errors.
 
 Extensions that mysteriously disable themselves can be an indicator of duplicate extensions.
 
 Searches for extensions (by default) in
 
- * `%APP_DATA%\Microsoft\VisualStudio\14.0\Extensions`
- * `C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions`
+ * `%LOCALAPPDATA%\Microsoft\VisualStudio\1x.0\Extensions`
+ * `C:\Program Files (x86)\Microsoft Visual Studio 1x.0\Common7\IDE\Extensions`
+ * `C:\Program Files (x86)\Microsoft Visual Studio\...\Common7\IDE\Extensions`
 
-You can override this and specify one or multiple paths on the commandline.
+You can override this and specify one or multiple paths on the command line.
 
-It scans extension folders (containing an 'extension.vsixmanifest' or 'extension.vsixmanifest.deleteme' file). Specify -delete to actually remove duplicate extensions, leaving the latest version.
+It scans extension folders (containing an 'extension.vsixmanifest' or 'extension.vsixmanifest.deleteme' file). 
+Specify -delete to actually remove duplicate extensions, leaving the latest version.
 
 ## Command line parameters
 
  * _none_: shows all extensions installed (marking each line as "KEEP" or "DELETE")
- * `-dupes`: only show duplicate extensions\*
+ * `-dupes`: only show extensions with duplicates
  * `-delete`: deletes the extensions listed as "DELETE" from the file system
  * Any argument not starting with a "-" is used as a root path to find extension folders. You can specify multiple paths.
 
