@@ -121,7 +121,8 @@ namespace DuplicateExtensionFinder
             Name = name;
             ExtensionDirectories = extensionDirectories.ToList();
 
-            if ((name.Length >= 4) && double.TryParse(name.Substring(0, 4), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var version))
+            double version;
+            if((name.Length >= 4) && double.TryParse(name.Substring(0, 4), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out version))
             {
                 if (version <= 14)
                 {
