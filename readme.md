@@ -1,7 +1,8 @@
 # Duplicate Extension Finder for VS2010-2017
 
 [![Build status](https://ci.appveyor.com/api/projects/status/cfgak6mw0v8fg9d2?svg=true)](https://ci.appveyor.com/project/remcoros/duplicateextensionfinder)
-[Appveyor artifacts (latest .exe here)](https://ci.appveyor.com/project/remcoros/duplicateextensionfinder/build/artifacts)
+
+[Get the latest release here.](https://github.com/remcoros/DuplicateExtensionFinder/releases)
 
 Simple console tool to find duplicate extension folders / manifests for Visual Studio 201x extensions. Used by me to cleanup and fix duplicate extension loading errors.
 
@@ -30,7 +31,7 @@ Specify -delete to actually remove duplicate extensions, leaving the latest vers
 
 ## How to run
 
-1. Clone/download and build (or download latest binary from Appveyor, see link on top)
+1. Clone/download and build (or download latest binary from the [Releases page](https://github.com/remcoros/DuplicateExtensionFinder/releases), see link on top)
 2. Run the .exe via a command prompt (CMD, Powershell) e.g.
       
          > DuplicateExtensionFinder.exe -dupes
